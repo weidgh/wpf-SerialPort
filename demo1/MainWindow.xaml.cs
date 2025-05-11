@@ -43,7 +43,7 @@ namespace demo1
         private DispatcherTimer _autoSendTimer;
         private double _autoSendInterval = 1000; // 默认自动发送间隔为1秒
 
-
+        const int maxPreviewBytes = 4000;
         public MainWindow()
         {
             InitializeComponent();
@@ -525,7 +525,7 @@ namespace demo1
                 );
 
                 // 写入文件
-                File.WriteAllText(fileName, currentTextRange.Text, Encoding.UTF8);
+                File.WriteAllText(fileName, currentTextRange.Text, Encoding.GetEncoding("GBK"));
                 MessageBox.Show($"文件已保存到：{fileName}");
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
@@ -548,6 +548,194 @@ namespace demo1
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 FilePath_textBox.Text = dialog.FileName;
+            }
+        }
+
+        private void openFile_button_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new CommonOpenFileDialog
+            {
+                Title = "请选择文件",
+                IsFolderPicker = false,
+                EnsureFileExists = true,
+                Multiselect = false,
+                InitialDirectory = sendfile_textbox.Text,
+                Filters = {new CommonFileDialogFilter("文本文件", "*.txt")},
+            };
+
+            if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
+            {
+                try
+                {
+                    string filePath = dialog.FileName;
+                    sendfile_textbox.Text = filePath;
+
+                    // 读取文件内容并显示
+                    var fileInfo = new FileInfo(filePath);
+                    long fileSize = fileInfo.Length;
+
+                    // 读取文件预览数据
+                    byte[] previewData;
+                    using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    {
+                        previewData = new byte[Math.Min(maxPreviewBytes, fileSize)];
+                        fs.Read(previewData, 0, previewData.Length);
+                    }
+
+                    // 新增：生成预览内容
+                    string previewText;
+                    try
+                    {
+                        previewText = Encoding.UTF8.GetString(previewData);
+                        if (previewText.Any(c => char.IsControl(c) && c != '\r' && c != '\n'))
+                        {
+                            throw new Exception("包含控制字符");
+                        }
+                    }
+                    catch
+                    {
+                        previewText = BitConverter.ToString(previewData).Replace("-", " ");
+                    }
+
+                    // 显示预览数据
+                    //显示发送消息
+                    Dispatcher.Invoke(() =>
+                    {
+                        var paragraph = new Paragraph
+                        {
+                            Margin = new Thickness(0),
+                            LineHeight = 12,
+                        };
+                        // 文件信息
+                        paragraph.Inlines.Add(new Run($"[{DateTime.Now:HH:mm:ss.fff}] [已加载] ")
+                        {
+                            Foreground = Brushes.DarkGreen,
+                            FontWeight = FontWeights.Bold
+                        });
+                        paragraph.Inlines.Add(new Run($"{System.IO.Path.GetFileName(filePath)} "));
+                        paragraph.Inlines.Add(new Run($"({fileSize}字节)\n")
+                        {
+                            Foreground = Brushes.Gray,
+                            FontStyle = FontStyles.Italic
+                        });
+
+                        // 预览数据
+                        paragraph.Inlines.Add(new Run($"[预览前{previewData.Length}字节]:\n")
+                        {
+                            Foreground = Brushes.DarkBlue,
+                        });
+                        
+                        paragraph.Inlines.Add(new Run(previewText)
+                        {
+                            Foreground = Brushes.Black,
+                        });
+
+                        receive_richTextBox.Document.Blocks.Add(paragraph);
+                        receive_richTextBox.ScrollToEnd();
+                    });
+                }
+                catch (Exception)
+                {
+                    MessageBox.Show("文件读取失败");
+                }
+               
+            }
+        }
+
+        private void sendFile_button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 验证串口状态
+                if (!_serialPort.IsOpen)
+                {
+                    MessageBox.Show("串口未打开");
+                    return;
+                }
+
+                // 获取文件路径
+                string filePath = sendfile_textbox.Text.Trim();
+
+                // 文件验证
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    MessageBox.Show("请先选择文件");
+                    return;
+                }
+
+                if (!File.Exists(filePath))
+                {
+                    MessageBox.Show("文件不存在");
+                    return;
+                }
+
+                // 读取文件内容
+                byte[] fileData;
+                using(FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    fileData = new byte[fs.Length];
+                    fs.Read(fileData, 0, fileData.Length);
+                }
+
+                // 实际发送
+                _serialPort.Write(fileData, 0, fileData.Length);
+                sendCount += fileData.Length;
+
+                // 更新发送计数
+                Dispatcher.Invoke(() => sendCount_textBox.Text = sendCount.ToString());
+            }
+            catch (UnauthorizedAccessException)
+            {
+                MessageBox.Show("文件访问被拒绝");
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show($"文件读取失败：{ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送失败：{ex.Message}");
+            }
+        }
+
+        private void clearCount_button_Click(object sender, RoutedEventArgs e)
+        {
+            sendCount = 0;
+            sendCount_textBox.Text = "0";
+            receiveCount = 0;
+            receiveCount_textBox.Text = "0";
+        }
+
+        private void RTS_checkBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_serialPort.IsOpen)
+            {
+                RTS_checkBox.IsEnabled = false;
+            }
+            if (RTS_checkBox.IsChecked == true)
+            {
+                _serialPort.RtsEnable = true;
+            }
+            else
+            {
+                _serialPort.RtsEnable = false;
+            }
+        }
+
+        private void DTR_checkBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_serialPort.IsOpen)
+            {
+                DTR_checkBox.IsEnabled = false;
+            }
+
+            if (DTR_checkBox.IsChecked == true)
+            {
+                _serialPort.DtrEnable = true;
+            }
+            else
+            {
+                _serialPort.DtrEnable = false;
             }
         }
     }

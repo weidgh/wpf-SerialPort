@@ -78,9 +78,11 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <CheckBox x:Name="RTS_checkBox" Content="RTS" FontSize="15"/>
+                        <CheckBox x:Name="RTS_checkBox" Content="RTS" FontSize="15"
+                                  Checked="RTS_checkBox_Checked"/>
                         <TextBlock Text="" Width="80"/>
-                        <CheckBox x:Name="DTR_checkBox" Content="DTR" FontSize="15"/>
+                        <CheckBox x:Name="DTR_checkBox" Content="DTR" FontSize="15"
+                                  Checked="DTR_checkBox_Checked"/>
                     </StackPanel>
 
                     <StackPanel Margin="0,5,0,10">
@@ -141,9 +143,11 @@
                                 Click="clearSend_button_Click"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button Content="打开文件" Width="80" VerticalAlignment="Center"/>
+                        <Button x:Name="openFile_button" Content="打开文件" Width="80" VerticalAlignment="Center"
+                                Click="openFile_button_Click"/>
                         <TextBlock Text="" Width="50"/>
-                        <Button Content="发送文件" Width="80"/>
+                        <Button x:Name="sendFile_button" Content="发送文件" Width="80"
+                                Click="sendFile_button_Click"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
                         <TextBox x:Name="sendfile_textbox" Width="210" FontSize="15"
@@ -169,7 +173,7 @@
                 </StatusBarItem>
 
                 <StatusBarItem>
-                    <TextBox x:Name="sendCount_textBox" Width="80"/>
+                    <TextBox x:Name="sendCount_textBox" Width="80" Text="0"/>
                 </StatusBarItem>
 
                 <StatusBarItem>
@@ -177,11 +181,11 @@
                 </StatusBarItem>
 
                 <StatusBarItem>
-                    <TextBox x:Name="receiveCount_textBox" Width="80" />
+                    <TextBox x:Name="receiveCount_textBox" Width="80" Text="0" />
                 </StatusBarItem>
 
                 <StatusBarItem>
-                    <Button Content="清空计数" Name="clearCount_button"/>
+                    <Button x:Name="clearCount_button" Content="清空计数" Click="clearCount_button_Click"/>
                 </StatusBarItem>
                 
             </StatusBar>
