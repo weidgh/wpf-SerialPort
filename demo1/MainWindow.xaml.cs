@@ -2,21 +2,14 @@
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace demo1
@@ -26,215 +19,214 @@ namespace demo1
     /// </summary>
     public partial class MainWindow : Window
     {
-        private SerialPort _serialPort = new SerialPort();//创建串口对象
+        private readonly SerialPort _serialPort = new SerialPort();
+        private readonly object _serialReadLock = new object();
+        private readonly ConcurrentQueue<ReceiveFrame> _receiveQueue = new ConcurrentQueue<ReceiveFrame>();
+        private readonly DispatcherTimer _autoSendTimer;
 
+        private Brush _originalReceiveBackground;
+        private bool _isReceivePaused;
+        private int _receiveCount;
+        private int _sendCount;
 
-        private int receiveCount = 0;//接收字符数量
-        private int sendCount = 0;//发送字符数量
+        private const int MaxPreviewBytes = 4000;
+        private const int DefaultAutoSendInterval = 1000;
 
-        private ConcurrentQueue<(DateTime timestamp, string data)> _dataQueue = new ConcurrentQueue<(DateTime timestamp, string data)>();
-
-        private readonly object _lock = new object();
-
-        private bool _isDisplayPause = false; // 是否暂停接收数据
-
-        private Brush _originalRichTextBackground;
-
-        private DispatcherTimer _autoSendTimer;
-        private double _autoSendInterval = 1000; // 默认自动发送间隔为1秒
-
-        const int maxPreviewBytes = 4000;
         public MainWindow()
         {
             InitializeComponent();
-            SerialPortLoad();//加载串口
 
-            //注册串口数据接收事件
             _serialPort.DataReceived += SerialPort_DataReceived;
 
-            // 创建新文档并清除默认段落
             receive_richTextBox.Document = new FlowDocument();
             receive_richTextBox.Document.Blocks.Clear();
+            _originalReceiveBackground = receive_richTextBox.Background;
 
-            // 设置默认背景颜色
-            _originalRichTextBackground = receive_richTextBox.Background;
-
-            //初始化计时器
-            _autoSendTimer = new DispatcherTimer();
+            _autoSendTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(DefaultAutoSendInterval)
+            };
             _autoSendTimer.Tick += AutoSendTimer_Tick;
-            _autoSendTimer.Interval = TimeSpan.FromMilliseconds(_autoSendInterval);
 
-
-            interval_TextBox.Text = "1000";
+            interval_TextBox.Text = DefaultAutoSendInterval.ToString();
             interval_TextBox.TextChanged += Interval_TextBox_TextChanged;
-            
-        }
 
-        private void Interval_TextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (double.TryParse(interval_TextBox.Text,out double result) && result > 0)
-            {
-                _autoSendInterval = result;
-                _autoSendTimer.Interval = TimeSpan.FromMilliseconds(_autoSendInterval);
-            }
-            else
-            {
-                _autoSendInterval = 1000;// 默认值
-            }
-        }
-
-        private void SerialPortLoad()
-        {
-            EncodingInfo[] encodingInfos = Encoding.GetEncodings();
-
-            //打开注册表路径
-            RegistryKey keyCom = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DEVICEMAP\SERIALCOMM");
-
-            //获取注册表里所有的值
-            string[] valueNames = keyCom.GetValueNames();
-
-            Port_comboBox.Items.Clear();//清空串口列表
-
-            foreach (string valueName in valueNames)
-            {
-                string portName = (string)keyCom.GetValue(valueName);//获取串口名称
-                Port_comboBox.Items.Add(portName);//添加到串口列表
-            }
-
-            this.BaudRate_comboBox.SelectedIndex = 0;//波特率默认为9600
-            this.Parity_comboBox.SelectedIndex = 0;//校验位默认为无
-            this.DataBits_comboBox.SelectedIndex = 0;//数据位默认为8
-            this.StopBits_comboBox.SelectedIndex = 0;//停止位默认为1
-
-        }
-        private void open_button_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // 确保 _serialPort 不为 null
-                if (_serialPort == null)
-                {
-                    status_textblock.Text = "串口未初始化";
-                    return;
-                }
-
-                if (!_serialPort.IsOpen)
-                {
-                    // 配置串口参数（确保 UI 控件不为空）
-                    if (string.IsNullOrEmpty(Port_comboBox.Text))
-                    {
-                        status_textblock.Text = "未选择串口号";
-                        return;
-                    }
-
-                    _serialPort.PortName = Port_comboBox.Text;//设置串口名
-                    _serialPort.BaudRate = Convert.ToInt32(BaudRate_comboBox.Text);//设置波特率
-                    _serialPort.DataBits = Convert.ToInt32(DataBits_comboBox.Text);//设置数据位
-                    //
-                    switch (Parity_comboBox.SelectedIndex)
-                    {
-                        //none odd even
-                        case 0:
-                            _serialPort.Parity = Parity.None;//无
-                            break;
-                        case 1:
-                            _serialPort.Parity = Parity.Odd;//奇
-                            break;
-                        case 2:
-                            _serialPort.Parity = Parity.Even;//偶
-                            break;
-                        default:
-                            break;
-                    }
-                    //根据下拉框的选择设置停止位
-                    switch (StopBits_comboBox.SelectedIndex)
-                    {
-                        //1 1.5 2
-                        case 0:
-                            _serialPort.StopBits = StopBits.One;//1
-                            break;
-                        case 1:
-                            _serialPort.StopBits = StopBits.OnePointFive;//1.5
-                            break;
-                        case 2:
-                            _serialPort.StopBits = StopBits.Two;//2
-                            break;
-                        default:
-                            break;
-                    }
-                    //打开串口
-                    _serialPort.Open();
-
-                    open_button.Content = "关闭串口";
-                    status_textblock.Text = $"打开{_serialPort.PortName}串口成功";
-                }
-                else
-                {
-                    //如果是打开的则关闭串口
-                    _serialPort.Close();
-
-                    open_button.Content = "打开串口";
-                    status_textblock.Text = $"关闭{_serialPort.PortName}串口成功";
-                }
-            }
-            catch (Exception ex)
-            {
-                //捕获异常，弹出问题和串口号
-                status_textblock.Text = $"打开{_serialPort.PortName}串口异常";
-                System.Windows.MessageBox.Show(ex.ToString() + _serialPort.PortName.ToString());
-            }
+            ResetCounters();
+            LoadSerialPorts();
         }
 
         protected override void OnClosed(EventArgs e)
         {
-            if (_serialPort != null)
+            _autoSendTimer.Stop();
+            _autoSendTimer.Tick -= AutoSendTimer_Tick;
+
+            _serialPort.DataReceived -= SerialPort_DataReceived;
+            if (_serialPort.IsOpen)
             {
-                _serialPort.DataReceived -= SerialPort_DataReceived; // 注销事件
-                if (_serialPort.IsOpen) _serialPort.Close();
-                _serialPort.Dispose();
+                _serialPort.Close();
             }
+            _serialPort.Dispose();
+
             base.OnClosed(e);
         }
 
-        #region Receive区
+        private void LoadSerialPorts()
+        {
+            Port_comboBox.Items.Clear();
+
+            var ports = SerialPort.GetPortNames();
+            if (ports.Length == 0)
+            {
+                using (var keyCom = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DEVICEMAP\SERIALCOMM"))
+                {
+                    var valueNames = keyCom?.GetValueNames() ?? Array.Empty<string>();
+                    foreach (var valueName in valueNames)
+                    {
+                        if (keyCom?.GetValue(valueName) is string name)
+                        {
+                            Port_comboBox.Items.Add(name);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var port in ports.OrderBy(p => p))
+                {
+                    Port_comboBox.Items.Add(port);
+                }
+            }
+
+            if (Port_comboBox.Items.Count > 0)
+            {
+                Port_comboBox.SelectedIndex = 0;
+            }
+
+            BaudRate_comboBox.SelectedIndex = 0;
+            Parity_comboBox.SelectedIndex = 0;
+            DataBits_comboBox.SelectedIndex = 0;
+            StopBits_comboBox.SelectedIndex = 0;
+        }
+
+        private void Interval_TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!double.TryParse(interval_TextBox.Text, out var intervalMs) || intervalMs <= 0)
+            {
+                intervalMs = DefaultAutoSendInterval;
+            }
+
+            _autoSendTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
+        }
+
+        private void open_button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_serialPort.IsOpen)
+                {
+                    _serialPort.Close();
+                    open_button.Content = "打开串口";
+                    status_textblock.Text = $"关闭{_serialPort.PortName}串口成功";
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(Port_comboBox.Text))
+                {
+                    status_textblock.Text = "未选择串口号";
+                    return;
+                }
+
+                _serialPort.PortName = Port_comboBox.Text;
+                _serialPort.BaudRate = Convert.ToInt32(BaudRate_comboBox.Text);
+                _serialPort.DataBits = Convert.ToInt32(DataBits_comboBox.Text);
+                _serialPort.Parity = ResolveParity();
+                _serialPort.StopBits = ResolveStopBits();
+                _serialPort.RtsEnable = RTS_checkBox.IsChecked == true;
+                _serialPort.DtrEnable = DTR_checkBox.IsChecked == true;
+
+                _serialPort.Open();
+
+                open_button.Content = "关闭串口";
+                status_textblock.Text = $"打开{_serialPort.PortName}串口成功";
+            }
+            catch (Exception ex)
+            {
+                status_textblock.Text = $"打开串口异常: {ex.Message}";
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private Parity ResolveParity()
+        {
+            switch (Parity_comboBox.SelectedIndex)
+            {
+                case 1:
+                    return Parity.Odd;
+                case 2:
+                    return Parity.Even;
+                default:
+                    return Parity.None;
+            }
+        }
+
+        private StopBits ResolveStopBits()
+        {
+            switch (StopBits_comboBox.SelectedIndex)
+            {
+                case 1:
+                    return StopBits.OnePointFive;
+                case 2:
+                    return StopBits.Two;
+                default:
+                    return StopBits.One;
+            }
+        }
+
+        #region Receive
+
         private void autoClear_checkBox_Checked(object sender, RoutedEventArgs e)
         {
-            receive_richTextBox_TextChanged(sender, e as TextChangedEventArgs);
+            AutoClearReceiveIfNeeded();
         }
 
         private void receive_richTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (autoClear_checkBox.IsChecked == true && receive_richTextBox != null)
-            {
-                TextRange _receiveTextRange = new TextRange(
-                    receive_richTextBox.Document.ContentStart,
-                    receive_richTextBox.Document.ContentEnd
-                    );
+            AutoClearReceiveIfNeeded();
+        }
 
-                if (_receiveTextRange.Text.Length > 1024)
-                {
-                    Dispatcher.Invoke(new Action(() =>
-                    {
-                        receive_richTextBox.Document.Blocks.Clear();
-                    }));
-                }
+        private void AutoClearReceiveIfNeeded()
+        {
+            if (autoClear_checkBox.IsChecked != true)
+            {
+                return;
             }
+
+            var text = new TextRange(receive_richTextBox.Document.ContentStart, receive_richTextBox.Document.ContentEnd).Text;
+            if (text.Length <= 1024)
+            {
+                return;
+            }
+
+            receive_richTextBox.Document.Blocks.Clear();
         }
 
         private void clearReceive_button_Click(object sender, RoutedEventArgs e)
         {
-            if (receive_richTextBox != null)
+            receive_richTextBox.Document.Blocks.Clear();
+            _receiveCount = 0;
+            receiveCount_textBox.Text = "0";
+        }
+
+        private void stop_button_Click(object sender, RoutedEventArgs e)
+        {
+            _isReceivePaused = !_isReceivePaused;
+            stop_button.Content = _isReceivePaused ? "继续接收" : "暂停接收";
+            receive_richTextBox.Background = _isReceivePaused ? Brushes.LightGray : _originalReceiveBackground;
+            receive_richTextBox.Opacity = _isReceivePaused ? 0.8 : 1;
+
+            if (!_isReceivePaused)
             {
-                //TextRange textRange = new TextRange(
-                //    receive_richTextBox.Document.ContentStart,
-                //    receive_richTextBox.Document.ContentEnd
-                //    );
-                Dispatcher.Invoke(new Action(() =>
-                 {
-                     receive_richTextBox.Document.Blocks.Clear();
-                     receiveCount = 0;
-                     receiveCount_textBox.Text = "0";
-                 }));
+                FlushReceiveQueue();
             }
         }
 
@@ -242,123 +234,87 @@ namespace demo1
         {
             try
             {
-                lock (_lock)
+                lock (_serialReadLock)
                 {
-                    int bytesToRead = _serialPort.BytesToRead;
-                    if (bytesToRead <= 0) return;
+                    var bytesToRead = _serialPort.BytesToRead;
+                    if (bytesToRead <= 0)
+                    {
+                        return;
+                    }
 
-
-                    byte[] buffer = new byte[bytesToRead];
+                    var buffer = new byte[bytesToRead];
                     _serialPort.Read(buffer, 0, bytesToRead);
-                    receiveCount += bytesToRead;
+                    _receiveCount += bytesToRead;
 
-                    // 在UI线程获取显示模式
-                    bool isHexMode = false;
-                    Dispatcher.Invoke(() => isHexMode = receivehex_checkBox.IsChecked == true);
-
-                    // 将数据存入缓冲区（不要直接操作UI控件）
-                    string displayData = isHexMode
-                        ? Transform.HexToString(buffer, "")
+                    var isHexMode = Dispatcher.Invoke(() => receivehex_checkBox.IsChecked == true);
+                    var display = isHexMode
+                        ? Transform.HexToString(buffer)
                         : Encoding.GetEncoding("GBK").GetString(buffer).Replace("\0", "\\0");
 
-                    //添加到接收缓冲区
-                    _dataQueue.Enqueue((DateTime.Now, displayData));
-
-                    // 自动分割逻辑（示例按时间间隔分割）
-                    if (_dataQueue.Count >= 1)//每10条刷新一次
-                    {
-                        ReceiveFlushBuffer();
-                    }
+                    _receiveQueue.Enqueue(new ReceiveFrame(DateTime.Now, display));
                 }
 
+                FlushReceiveQueue();
             }
             catch (Exception ex)
             {
-                Dispatcher.Invoke(() =>
-                    status_textblock.Text = $"接收错误: {ex.Message}");
+                Dispatcher.Invoke(() => status_textblock.Text = $"接收错误: {ex.Message}");
             }
         }
 
-        // 定时器触发或手动调用
-        private void ReceiveFlushBuffer()
+        private void FlushReceiveQueue()
         {
-            if (_isDisplayPause)
+            if (_isReceivePaused)
             {
-                receive_richTextBox.Background = Brushes.LightGray;
-                receive_richTextBox.Opacity = 0.8;
-                return; // 暂停状态不处理
+                return;
             }
 
             Dispatcher.Invoke(() =>
             {
-                // 恢复正常显示状态
-                receive_richTextBox.Background = _originalRichTextBackground;
-                receive_richTextBox.Opacity = 1;
-
-                while (_dataQueue.TryDequeue(out var item))
+                while (_receiveQueue.TryDequeue(out var frame))
                 {
-                    var paragrahp = new Paragraph
-                    {
-                        Margin = new Thickness(0),
-                        LineHeight = 12,
-                    };
-
-                    paragrahp.Inlines.Add(new Run($"[{item.timestamp:HH:mm:ss.fff}] [RX]"));
-                    paragrahp.Inlines.Add(new Run($" {item.data}"));
-
-                    receive_richTextBox.Document.Blocks.Add(paragrahp);
+                    AppendReceiveParagraph(frame.Timestamp, "RX", frame.DisplayText, Brushes.Black, false);
                 }
 
-                // 更新接收计数
-                receiveCount_textBox.Text = receiveCount.ToString();
-                //自动滑动
-                receiveCount_textBox.ScrollToEnd();
+                receiveCount_textBox.Text = _receiveCount.ToString();
+                receive_richTextBox.ScrollToEnd();
             });
         }
 
-        private void stop_button_Click(object sender, RoutedEventArgs e)
+        private void AppendReceiveParagraph(DateTime timestamp, string tag, string content, Brush contentColor, bool italicHeader)
         {
-            _isDisplayPause = !_isDisplayPause;
-            // 切换暂停/继续接收状态
-            stop_button.Content = _isDisplayPause ? "继续接收" : "暂停接收";
-            //更新接收区背景
-            Dispatcher.Invoke(() =>
+            var paragraph = new Paragraph
             {
-                receive_richTextBox.Background = _isDisplayPause ?
-                Brushes.LightGray : _originalRichTextBackground;
+                Margin = new Thickness(0),
+                LineHeight = 12
+            };
+
+            paragraph.Inlines.Add(new Run($"[{timestamp:HH:mm:ss.fff}] [{tag}] ")
+            {
+                Foreground = Brushes.Gray,
+                FontStyle = italicHeader ? FontStyles.Italic : FontStyles.Normal
+            });
+            paragraph.Inlines.Add(new Run(content)
+            {
+                Foreground = contentColor
             });
 
-            // 非暂停状态强制刷新
-            if (!_isDisplayPause) ReceiveFlushBuffer();
+            receive_richTextBox.Document.Blocks.Add(paragraph);
         }
 
         #endregion
 
+        #region Send
+
         private void AutoSendTimer_Tick(object sender, EventArgs e)
         {
-            try
-            {
-                SerialPort_SendData();
-            }
-            catch (Exception ex)
-            {
-                _autoSendTimer.Stop();
-                Dispatcher.Invoke(() =>
-                {
-                    autoSend_checkBox.IsChecked = false;
-                    status_textblock.Text = $"自动发送错误: {ex.Message}";
-                });
-            }
+            SendCurrentInput();
         }
 
         private void autoSend_checkBox_Checked(object sender, RoutedEventArgs e)
         {
-            // 验证输入内容
-            TextRange textRange = new TextRange(
-                send_richTextBox.Document.ContentStart,
-                send_richTextBox.Document.ContentEnd);
-
-            if (string.IsNullOrWhiteSpace(textRange.Text))
+            var text = new TextRange(send_richTextBox.Document.ContentStart, send_richTextBox.Document.ContentEnd).Text;
+            if (string.IsNullOrWhiteSpace(text))
             {
                 MessageBox.Show("自动发送内容不能为空");
                 autoSend_checkBox.IsChecked = false;
@@ -368,8 +324,6 @@ namespace demo1
             _autoSendTimer.Start();
         }
 
-
-
         private void autoSend_checkBox_Unchecked(object sender, RoutedEventArgs e)
         {
             _autoSendTimer.Stop();
@@ -377,11 +331,10 @@ namespace demo1
 
         private void send_button_Click(object sender, RoutedEventArgs e)
         {
-            SerialPort_SendData();
+            SendCurrentInput();
         }
 
-
-        private void SerialPort_SendData()
+        private void SendCurrentInput()
         {
             try
             {
@@ -391,123 +344,61 @@ namespace demo1
                     return;
                 }
 
-                TextRange textRange = new TextRange(send_richTextBox.Document.ContentStart,
-                    send_richTextBox.Document.ContentEnd);
-
-                //获取发送数据
-                string inputData = textRange.Text.Trim();
-
-                if (string.IsNullOrEmpty(inputData))
+                var textRange = new TextRange(send_richTextBox.Document.ContentStart, send_richTextBox.Document.ContentEnd);
+                var input = textRange.Text.Trim();
+                if (string.IsNullOrWhiteSpace(input))
                 {
                     MessageBox.Show("发送内容不能为空");
                     return;
                 }
 
-                // 在UI线程获取显示模式
-                bool isHexMode = false;
-                Dispatcher.Invoke(() => isHexMode = sendHex_checkBox.IsChecked == true);
+                var isHexMode = sendHex_checkBox.IsChecked == true;
+                var payload = isHexMode ? Transform.HexToBytes(input.Replace(" ", string.Empty)) : Encoding.GetEncoding("GBK").GetBytes(input);
 
-                //数据转换
-                byte[] sendData;
-                try
-                {
-                    if (isHexMode)
-                    {
-                        // 清理HEX输入
-                        string cleanHex = inputData.Replace(" ", "");
+                _serialPort.Write(payload, 0, payload.Length);
+                _sendCount += payload.Length;
+                sendCount_textBox.Text = _sendCount.ToString();
 
-                        if (cleanHex.Length % 2 != 0)
-                            throw new FormatException("HEX长度必须为偶数");
-
-                        sendData = Transform.HexToBytes(cleanHex);
-                    }
-                    else
-                    {
-                        sendData = Encoding.GetEncoding("GBK").GetBytes(inputData);
-                    }
-                }
-                catch (Exception ex)
-                {
-
-                    Dispatcher.Invoke(() =>
-                                MessageBox.Show($"数据格式错误: {ex.Message}"));
-                    return;
-                }
-
-                Dispatcher.Invoke(() =>
-                {
-                    var historyParagraph = new Paragraph
-                    {
-                        Margin = new Thickness(0),
-                        LineHeight = 12,
-                    };
-
-                    // 时间戳
-                    historyParagraph.Inlines.Add(new Run($"[{DateTime.Now:HH:mm:ss.fff}] [TX] ")
-                    {
-                        Foreground = Brushes.Gray,
-                        FontStyle = FontStyles.Italic
-                    });
-
-                    // 内容
-                    string displayContent = isHexMode
-                        ? Transform.HexToString(sendData, " ")
-                        : Encoding.GetEncoding("GBK").GetString(sendData);
-
-                    historyParagraph.Inlines.Add(new Run(displayContent));
-                    receive_richTextBox.Document.Blocks.Add(historyParagraph);
-                    receive_richTextBox.ScrollToEnd();
-                });
-
-                //实际发送
-                _serialPort.Write(sendData, 0, sendData.Length);
-                sendCount += sendData.Length;
-
-                //更新发送计数
-                Dispatcher.Invoke(() => sendCount_textBox.Text = sendCount.ToString());
+                var display = isHexMode ? Transform.HexToString(payload, " ") : Encoding.GetEncoding("GBK").GetString(payload);
+                AppendReceiveParagraph(DateTime.Now, "TX", display, Brushes.Black, true);
+                receive_richTextBox.ScrollToEnd();
+            }
+            catch (FormatException ex)
+            {
+                MessageBox.Show($"数据格式错误: {ex.Message}");
             }
             catch (Exception ex)
             {
-
-                Dispatcher.Invoke(() =>
-                    status_textblock.Text = $"发送失败: {ex.Message}");
+                status_textblock.Text = $"发送失败: {ex.Message}";
             }
         }
 
         private void clearSend_button_Click(object sender, RoutedEventArgs e)
         {
-            if (send_richTextBox != null)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    send_richTextBox.Document.Blocks.Clear();
-                    sendCount = 0;
-                    sendCount_textBox.Text = "0";
-                });
-            }
+            send_richTextBox.Document.Blocks.Clear();
+            _sendCount = 0;
+            sendCount_textBox.Text = "0";
         }
+
+        #endregion
 
         private void saveData_button_Click(object sender, RoutedEventArgs e)
         {
-
-            // 动态获取内容
-            var currentTextRange = new TextRange(
-                receive_richTextBox.Document.ContentStart,
-                receive_richTextBox.Document.ContentEnd
-            );
-
-            if (string.IsNullOrEmpty(currentTextRange.Text))
+            var content = new TextRange(receive_richTextBox.Document.ContentStart, receive_richTextBox.Document.ContentEnd).Text;
+            if (string.IsNullOrWhiteSpace(content))
             {
                 MessageBox.Show("没有需要保存的内容！");
                 return;
             }
-            if (string.IsNullOrEmpty(FilePath_textBox.Text))
+
+            var dir = FilePath_textBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(dir))
             {
                 MessageBox.Show("请选择保存路径！");
                 return;
             }
-            // 路径有效性检查
-            if (FilePath_textBox.Text.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0)
+
+            if (dir.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             {
                 MessageBox.Show("路径包含非法字符");
                 return;
@@ -515,24 +406,15 @@ namespace demo1
 
             try
             {
-                // 创建目录（如果不存在）
-                Directory.CreateDirectory(FilePath_textBox.Text);
-
-                // 生成文件名
-                string fileName = System.IO.Path.Combine(
-                    FilePath_textBox.Text,
-                    $"Data_{DateTime.Now:yyyyMMddHHmmss}.txt"
-                );
-
-                // 写入文件
-                File.WriteAllText(fileName, currentTextRange.Text, Encoding.GetEncoding("GBK"));
+                Directory.CreateDirectory(dir);
+                var fileName = Path.Combine(dir, $"Data_{DateTime.Now:yyyyMMddHHmmss}.txt");
+                File.WriteAllText(fileName, content, Encoding.GetEncoding("GBK"));
                 MessageBox.Show($"文件已保存到：{fileName}");
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
             {
                 MessageBox.Show($"保存失败：{ex.Message}");
             }
-
         }
 
         private void savePath_button_Click(object sender, RoutedEventArgs e)
@@ -559,86 +441,52 @@ namespace demo1
                 IsFolderPicker = false,
                 EnsureFileExists = true,
                 Multiselect = false,
-                InitialDirectory = sendfile_textbox.Text,
-                Filters = {new CommonFileDialogFilter("文本文件", "*.txt")},
+                InitialDirectory = sendfile_textbox.Text
             };
+            dialog.Filters.Add(new CommonFileDialogFilter("文本文件", "*.txt"));
 
-            if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
+            if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
             {
+                return;
+            }
+
+            try
+            {
+                var filePath = dialog.FileName;
+                sendfile_textbox.Text = filePath;
+
+                var fileInfo = new FileInfo(filePath);
+                var fileSize = fileInfo.Length;
+                var previewLength = (int)Math.Min(MaxPreviewBytes, fileSize);
+
+                byte[] previewData;
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    previewData = new byte[previewLength];
+                    fs.Read(previewData, 0, previewLength);
+                }
+
+                string previewText;
                 try
                 {
-                    string filePath = dialog.FileName;
-                    sendfile_textbox.Text = filePath;
-
-                    // 读取文件内容并显示
-                    var fileInfo = new FileInfo(filePath);
-                    long fileSize = fileInfo.Length;
-
-                    // 读取文件预览数据
-                    byte[] previewData;
-                    using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    previewText = Encoding.UTF8.GetString(previewData);
+                    if (previewText.Any(c => char.IsControl(c) && c != '\r' && c != '\n' && c != '\t'))
                     {
-                        previewData = new byte[Math.Min(maxPreviewBytes, fileSize)];
-                        fs.Read(previewData, 0, previewData.Length);
+                        throw new InvalidDataException("包含控制字符");
                     }
-
-                    // 新增：生成预览内容
-                    string previewText;
-                    try
-                    {
-                        previewText = Encoding.UTF8.GetString(previewData);
-                        if (previewText.Any(c => char.IsControl(c) && c != '\r' && c != '\n'))
-                        {
-                            throw new Exception("包含控制字符");
-                        }
-                    }
-                    catch
-                    {
-                        previewText = BitConverter.ToString(previewData).Replace("-", " ");
-                    }
-
-                    // 显示预览数据
-                    //显示发送消息
-                    Dispatcher.Invoke(() =>
-                    {
-                        var paragraph = new Paragraph
-                        {
-                            Margin = new Thickness(0),
-                            LineHeight = 12,
-                        };
-                        // 文件信息
-                        paragraph.Inlines.Add(new Run($"[{DateTime.Now:HH:mm:ss.fff}] [已加载] ")
-                        {
-                            Foreground = Brushes.DarkGreen,
-                            FontWeight = FontWeights.Bold
-                        });
-                        paragraph.Inlines.Add(new Run($"{System.IO.Path.GetFileName(filePath)} "));
-                        paragraph.Inlines.Add(new Run($"({fileSize}字节)\n")
-                        {
-                            Foreground = Brushes.Gray,
-                            FontStyle = FontStyles.Italic
-                        });
-
-                        // 预览数据
-                        paragraph.Inlines.Add(new Run($"[预览前{previewData.Length}字节]:\n")
-                        {
-                            Foreground = Brushes.DarkBlue,
-                        });
-                        
-                        paragraph.Inlines.Add(new Run(previewText)
-                        {
-                            Foreground = Brushes.Black,
-                        });
-
-                        receive_richTextBox.Document.Blocks.Add(paragraph);
-                        receive_richTextBox.ScrollToEnd();
-                    });
                 }
-                catch (Exception)
+                catch
                 {
-                    MessageBox.Show("文件读取失败");
+                    previewText = BitConverter.ToString(previewData).Replace("-", " ");
                 }
-               
+
+                var message = $"{Path.GetFileName(filePath)} ({fileSize}字节){Environment.NewLine}[预览前{previewLength}字节]:{Environment.NewLine}{previewText}";
+                AppendReceiveParagraph(DateTime.Now, "已加载", message, Brushes.DarkBlue, false);
+                receive_richTextBox.ScrollToEnd();
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("文件读取失败");
             }
         }
 
@@ -646,18 +494,14 @@ namespace demo1
         {
             try
             {
-                // 验证串口状态
                 if (!_serialPort.IsOpen)
                 {
                     MessageBox.Show("串口未打开");
                     return;
                 }
 
-                // 获取文件路径
-                string filePath = sendfile_textbox.Text.Trim();
-
-                // 文件验证
-                if (string.IsNullOrEmpty(filePath))
+                var filePath = sendfile_textbox.Text.Trim();
+                if (string.IsNullOrWhiteSpace(filePath))
                 {
                     MessageBox.Show("请先选择文件");
                     return;
@@ -669,20 +513,12 @@ namespace demo1
                     return;
                 }
 
-                // 读取文件内容
-                byte[] fileData;
-                using(FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-                {
-                    fileData = new byte[fs.Length];
-                    fs.Read(fileData, 0, fileData.Length);
-                }
-
-                // 实际发送
+                var fileData = File.ReadAllBytes(filePath);
                 _serialPort.Write(fileData, 0, fileData.Length);
-                sendCount += fileData.Length;
 
-                // 更新发送计数
-                Dispatcher.Invoke(() => sendCount_textBox.Text = sendCount.ToString());
+                _sendCount += fileData.Length;
+                sendCount_textBox.Text = _sendCount.ToString();
+                status_textblock.Text = $"发送文件成功: {Path.GetFileName(filePath)} ({fileData.Length}字节)";
             }
             catch (UnauthorizedAccessException)
             {
@@ -700,42 +536,30 @@ namespace demo1
 
         private void clearCount_button_Click(object sender, RoutedEventArgs e)
         {
-            sendCount = 0;
+            ResetCounters();
+        }
+
+        private void ResetCounters()
+        {
+            _sendCount = 0;
+            _receiveCount = 0;
             sendCount_textBox.Text = "0";
-            receiveCount = 0;
             receiveCount_textBox.Text = "0";
         }
 
         private void RTS_checkBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!_serialPort.IsOpen)
+            if (_serialPort.IsOpen)
             {
-                RTS_checkBox.IsEnabled = false;
-            }
-            if (RTS_checkBox.IsChecked == true)
-            {
-                _serialPort.RtsEnable = true;
-            }
-            else
-            {
-                _serialPort.RtsEnable = false;
+                _serialPort.RtsEnable = RTS_checkBox.IsChecked == true;
             }
         }
 
         private void DTR_checkBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!_serialPort.IsOpen)
+            if (_serialPort.IsOpen)
             {
-                DTR_checkBox.IsEnabled = false;
-            }
-
-            if (DTR_checkBox.IsChecked == true)
-            {
-                _serialPort.DtrEnable = true;
-            }
-            else
-            {
-                _serialPort.DtrEnable = false;
+                _serialPort.DtrEnable = DTR_checkBox.IsChecked == true;
             }
         }
     }
