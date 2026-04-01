@@ -3,224 +3,197 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:demo1"
         mc:Ignorable="d"
-        Title="MainWindow" Height="700" Width="1000">
-    <Grid>
+        Title="串口调试助手 (MVVM)" Height="760" Width="1220"
+        Background="#0F172A">
+    <Window.Resources>
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="Background" Value="#1E293B"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#0B1220"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="CaretBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="6,4"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#0B1220"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="250"/>
-            <ColumnDefinition Width="10"/>
+            <ColumnDefinition Width="370"/>
+            <ColumnDefinition Width="12"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="300"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="150"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="150"/>
-            <RowDefinition Height="50"/>
-        </Grid.RowDefinitions>
-        <StackPanel Grid.Row="1" Grid.Column="0" >
-            <GroupBox Header="串口配置" FontSize="12" Padding="10">
-                <StackPanel Orientation="Vertical">
-                    <!-- 串口号 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBlock Text="串口号" Width="60" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="Port_comboBox" Width="150"/>
-                    </StackPanel>
 
-                    <!-- 波特率 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBlock Text="波特率" Width="60" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="BaudRate_comboBox" Width="150"
-                     SelectedIndex="0">
-                            <ComboBoxItem>9600</ComboBoxItem>
-                            <ComboBoxItem>19200</ComboBoxItem>
-                            <ComboBoxItem>38400</ComboBoxItem>
-                            <ComboBoxItem>57600</ComboBoxItem>
-                            <ComboBoxItem>115200</ComboBoxItem>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <!-- 校验位 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBlock Text="校验位" Width="60" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="Parity_comboBox" Width="150"
-                     SelectedIndex="0">
-                            <ComboBoxItem>NONE</ComboBoxItem>
-                            <ComboBoxItem>ODD</ComboBoxItem>
-                            <ComboBoxItem>EVEN</ComboBoxItem>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <!-- 数据位 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBlock Text="数据位" Width="60" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="DataBits_comboBox" Width="150"
-                     SelectedIndex="0">
-                            <ComboBoxItem>8</ComboBoxItem>
-                            <ComboBoxItem>7</ComboBoxItem>
-                            <ComboBoxItem>6</ComboBoxItem>
-                            <ComboBoxItem>5</ComboBoxItem>
-                        </ComboBox>
-                    </StackPanel>
-                    
-                    <!-- 停止位 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBlock Text="停止位" Width="60" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="StopBits_comboBox" Width="150" Margin="0,0,0,10"
-                     SelectedIndex="0">
-                            <ComboBoxItem>1</ComboBoxItem>
-                            <ComboBoxItem>1.5</ComboBoxItem>
-                            <ComboBoxItem>2</ComboBoxItem>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <CheckBox x:Name="RTS_checkBox" Content="RTS" FontSize="15"
-                                  Checked="RTS_checkBox_Checked"/>
-                        <TextBlock Text="" Width="80"/>
-                        <CheckBox x:Name="DTR_checkBox" Content="DTR" FontSize="15"
-                                  Checked="DTR_checkBox_Checked"/>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,5,0,10">
-                        <Button x:Name="open_button" Content="打开串口" Width="140" Height="40"
-                                VerticalAlignment="Center" Click="open_button_Click"/>
-                    </StackPanel>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-        <StackPanel Grid.Row="3" Grid.Column="0">
-            <GroupBox Header="接收配置" FontSize="12" Padding="10">
-                <StackPanel Orientation="Vertical">
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,10">
-                        <CheckBox x:Name="autoClear_checkBox" Content="自动清空" VerticalAlignment="Center" Width="80"
-                                  Checked="autoClear_checkBox_Checked"/>
-                        <TextBlock Text="" Width="50"/>
-                        <CheckBox x:Name="receivehex_checkBox" Content="十六进制" Width="80"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button x:Name="clearReceive_button" Content="清空窗口" Width="80" 
-                                VerticalAlignment="Center"
-                                Foreground="Red"
-                                Click="clearReceive_button_Click"/>
-                        <TextBlock Text="" Width="50"/>
-                        <Button x:Name="stop_button" Content="暂停显示" Width="80"
-                                Click="stop_button_Click"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button x:Name="saveData_button" Content="保存数据" Width="80" VerticalAlignment="Center"
-                                Click="saveData_button_Click"/>
-                        <TextBlock Text="" Width="50"/>
-                        <Button x:Name="savePath_button" Content="保存路径" Width="80"
-                                Click="savePath_button_Click"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBox x:Name="FilePath_textBox" Width="210" FontSize="15"
-                                 VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-        <StackPanel Grid.Row="5" Grid.Column="0">
-            <GroupBox Header="发送配置" FontSize="12" Padding="10">
-                <StackPanel Orientation="Vertical">
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,10">
-                        <CheckBox x:Name="autoSend_checkBox" Content="自动发送" VerticalAlignment="Center" Width="70"
-                                  Checked="autoSend_checkBox_Checked"
-                                  Unchecked="autoSend_checkBox_Unchecked"/>
-                        <TextBox x:Name="interval_TextBox" Width="40"/>
-                        <TextBlock Text="ms/次"/>
-                        <CheckBox x:Name="sendHex_checkBox" Content="十六进制" Width="70"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button x:Name="send_button" Content="手动发送" Width="80" VerticalAlignment="Center"
-                                Click="send_button_Click"/>
-                        <TextBlock Text="" Width="50"/>
-                        <Button x:Name="clearSend_button" Content="清空发送" Width="80"
-                                Click="clearSend_button_Click"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button x:Name="openFile_button" Content="打开文件" Width="80" VerticalAlignment="Center"
-                                Click="openFile_button_Click"/>
-                        <TextBlock Text="" Width="50"/>
-                        <Button x:Name="sendFile_button" Content="发送文件" Width="80"
-                                Click="sendFile_button_Click"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                        <TextBox x:Name="sendfile_textbox" Width="210" FontSize="15"
-                     VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3">
-            <StatusBar Grid.Row="6"  Grid.Column="0" Grid.ColumnSpan="3" Background="#F0F0F0" 
-                       VerticalAlignment="Bottom" Margin="0,5,0,0">
-                <!-- 左侧状态文本 -->
-                <StatusBarItem>
-                    <TextBlock Text="状态:"/>
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <TextBlock x:Name="status_textblock" Width="240"/>
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <TextBlock  Text="发送计数:"/>
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <TextBox x:Name="sendCount_textBox" Width="80" Text="0"/>
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <TextBlock  Text="接收计数:"/>
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <TextBox x:Name="receiveCount_textBox" Width="80" Text="0" />
-                </StatusBarItem>
-
-                <StatusBarItem>
-                    <Button x:Name="clearCount_button" Content="清空计数" Click="clearCount_button_Click"/>
-                </StatusBarItem>
-                
-            </StatusBar>
-        </StackPanel>
-
-        <StackPanel Grid.Row="1" Grid.Column="2" Grid.RowSpan="5">
-            <GroupBox Header="显示区">
+        <Border Grid.Column="0" Background="#111827" CornerRadius="10" Padding="12">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <RichTextBox x:Name="receive_richTextBox" 
-                               VerticalScrollBarVisibility="Auto" 
-                               HorizontalScrollBarVisibility="Auto"
-                               FontSize="12" Margin="0,0,0,10"
-                               Height="400"
-                               TextChanged="receive_richTextBox_TextChanged"
-                               Background="LightBlue"
-                               IsDocumentEnabled="False">
-                        <RichTextBox.Resources>
-                            <Style TargetType="{x:Type Paragraph}">
-                                <Setter Property="Margin" Value="0"/>
-                                <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
-                            </Style>
-                        </RichTextBox.Resources>
-                    </RichTextBox>
+                    <TextBlock Text="串口控制面板" FontSize="22" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,14"/>
+
+                    <GroupBox Header="串口配置">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="串口" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <ComboBox Width="170" ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort, Mode=TwoWay}"/>
+                                <Button Content="刷新" Command="{Binding RefreshPortsCommand}" Background="#475569"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Text="波特率" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" Width="170" ItemsSource="{Binding BaudRates}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}"/>
+
+                            <TextBlock Grid.Row="2" Text="校验位" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="2" Grid.Column="1" Width="170" ItemsSource="{Binding ParityOptions}" SelectedItem="{Binding SelectedParity, Mode=TwoWay}"/>
+
+                            <TextBlock Grid.Row="3" Text="数据位" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="3" Grid.Column="1" Width="170" ItemsSource="{Binding DataBitsOptions}" SelectedItem="{Binding SelectedDataBits, Mode=TwoWay}"/>
+
+                            <TextBlock Grid.Row="4" Text="停止位" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="4" Grid.Column="1" Width="170" ItemsSource="{Binding StopBitsOptions}" SelectedItem="{Binding SelectedStopBits, Mode=TwoWay}"/>
+
+                            <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,0">
+                                <CheckBox Content="RTS" IsChecked="{Binding RtsEnabled, Mode=TwoWay}"/>
+                                <CheckBox Content="DTR" IsChecked="{Binding DtrEnabled, Mode=TwoWay}"/>
+                            </StackPanel>
+
+                            <Button Grid.Row="6" Grid.ColumnSpan="2" Content="{Binding OpenButtonText}" Command="{Binding TogglePortCommand}" Height="36" Margin="0,14,0,0"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <GroupBox Header="接收配置">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox Content="自动清空" IsChecked="{Binding AutoClear, Mode=TwoWay}"/>
+                                <CheckBox Content="十六进制显示" IsChecked="{Binding ReceiveHex, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="清空窗口" Command="{Binding ClearReceiveCommand}" Background="#DC2626"/>
+                                <Button Content="{Binding PauseButtonText}" Command="{Binding ToggleReceivePauseCommand}" Background="#D97706"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="保存数据" Command="{Binding SaveDataCommand}" Background="#16A34A"/>
+                                <Button Content="保存路径" Command="{Binding ChooseSavePathCommand}" Background="#475569"/>
+                            </StackPanel>
+                            <TextBox Margin="0,8,0,0" Text="{Binding SaveDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="发送配置">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <CheckBox Content="自动发送" IsChecked="{Binding AutoSendEnabled, Mode=TwoWay}"/>
+                                <TextBox Width="66" Text="{Binding AutoSendInterval, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Text="ms/次" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <CheckBox Content="十六进制发送" IsChecked="{Binding SendHex, Mode=TwoWay}" Margin="12,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="手动发送" Command="{Binding SendCommand}"/>
+                                <Button Content="清空发送" Command="{Binding ClearSendCommand}" Background="#475569"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="打开文件" Command="{Binding ChooseFileCommand}" Background="#475569"/>
+                                <Button Content="发送文件" Command="{Binding SendFileCommand}" Background="#9333EA"/>
+                            </StackPanel>
+                            <TextBox Margin="0,8,0,0" Text="{Binding SendFilePath, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </GroupBox>
                 </StackPanel>
-            </GroupBox>
-            <GroupBox Header="发送区">
-                <StackPanel >
-                    <RichTextBox x:Name="send_richTextBox" 
-                       VerticalScrollBarVisibility="Auto" 
-                       HorizontalScrollBarVisibility="Auto"
-                       FontSize="15" Margin="0,0,0,10"
-                         Height="140"
-                       Background="LightBlue"/>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Border Grid.Column="2" Background="#111827" CornerRadius="10" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="170"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="数据显示" FontSize="20" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,10"/>
+
+                <TextBox Grid.Row="1"
+                         Text="{Binding ReceiveLog, Mode=TwoWay}"
+                         FontFamily="Consolas"
+                         FontSize="13"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         Background="#020617"
+                         BorderBrush="#1D4ED8"/>
+
+                <TextBlock Grid.Row="2" Text="发送输入" Foreground="#CBD5E1" Margin="0,12,0,6"/>
+                <TextBox Grid.Row="3"
+                         Text="{Binding SendInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="Consolas"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"/>
+
+                <StatusBar Grid.Row="4" Background="#0B1220" Foreground="#E2E8F0" Margin="0,12,0,0">
+                    <StatusBarItem>
+                        <TextBlock Text="状态:"/>
+                    </StatusBarItem>
+                    <StatusBarItem>
+                        <TextBlock Width="350" Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+                    </StatusBarItem>
+                    <Separator/>
+                    <StatusBarItem>
+                        <TextBlock Text="发送计数:"/>
+                    </StatusBarItem>
+                    <StatusBarItem>
+                        <TextBlock Text="{Binding SendCount}"/>
+                    </StatusBarItem>
+                    <StatusBarItem>
+                        <TextBlock Text="接收计数:"/>
+                    </StatusBarItem>
+                    <StatusBarItem>
+                        <TextBlock Text="{Binding ReceiveCount}"/>
+                    </StatusBarItem>
+                    <StatusBarItem>
+                        <Button Content="清空计数" Command="{Binding ClearCountCommand}" Background="#475569" Margin="6,0,0,0"/>
+                    </StatusBarItem>
+                </StatusBar>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

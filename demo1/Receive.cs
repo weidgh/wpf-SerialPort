@@ -1,13 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace demo1
 {
-    public class Receive
+    /// <summary>
+    /// 接收数据帧（含时间戳和显示内容）。
+    /// </summary>
+    public sealed class ReceiveFrame
     {
+        public ReceiveFrame(DateTime timestamp, string displayText)
+        {
+            Timestamp = timestamp;
+            DisplayText = displayText ?? string.Empty;
+        }
 
+        public DateTime Timestamp { get; }
+
+        public string DisplayText { get; }
     }
 }
